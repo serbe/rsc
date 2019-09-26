@@ -1,21 +1,42 @@
-use std::io;
 use std::net::SocketAddr;
 
-use futures::sink::Sink;
-use tokio::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
-use tokio::io::{ReadHalf, WriteHalf, AsyncRead};
-use tokio::net::TcpStream;
 use futures::future::Future;
-use tokio_serde_json::{ReadJson, WriteJson};
+use futures::sink::Sink;
 use futures::stream::Stream;
+use tokio::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
+use tokio::io::{AsyncRead, ReadHalf, WriteHalf};
+use tokio::net::TcpStream;
+use tokio_serde_json::{ReadJson, WriteJson};
 
-use crate::messages::{Request, Response};
 use crate::errors::RpcError;
+use crate::messages::{Request, Response};
 
 pub struct RpcClient {
     read_json: ReadJson<FramedRead<ReadHalf<TcpStream>, LengthDelimitedCodec>, Response>,
     write_json: WriteJson<FramedWrite<WriteHalf<TcpStream>, LengthDelimitedCodec>, Request>,
 }
+
+// let handshake = client
+//     .and_then(|socket| {
+//         println!("successfully connected to {}", socket.local_addr().unwrap());
+//         // The initial greeting from the client
+//         //      field 1: version, 1 byte (0x01 for this version)
+//         //      field 2: number of authentication methods supported, 1 byte
+//         write_all(socket, [1u8, 0u8])
+//     })
+//     .and_then(|(socket, result)| {
+//         println!("wrote to stream; success={:?}", result);
+//         read_exact(socket, [0u8; 2])
+//     })
+//     .and_then(|(socket, buf)| match buf {
+//         [1u8, 0u8] => {
+//             println!("handshake ok");
+//             Ok(socket)
+//         }
+//         _ => Err(Error::from(ErrorKind::InvalidData)),
+//     });
+
+// tokio::run(client);
 
 impl RpcClient {
     pub fn connect(addr: SocketAddr) -> impl Future<Item = Self, Error = RpcError> {
@@ -32,6 +53,16 @@ impl RpcClient {
                 }
             })
             .map_err(|e| e.into())
+    }
+
+    pub fn join(self) -> impl Future<Item = Self, Error = RpcError> {
+        self.send_request(Request::Join)
+            .and_then(move |(resp, client)| match resp {
+                Some(Response::Join) => Ok(client),
+                Some(Response::Err(msg)) => Err(RpcError::StringError(msg)),
+                Some(_) => Err(RpcError::StringError("Invalid response".to_owned())),
+                None => Err(RpcError::StringError("No response received".to_owned())),
+            })
     }
 
     pub fn get(self, num: i64) -> impl Future<Item = (Vec<String>, Self), Error = RpcError> {
@@ -54,7 +85,10 @@ impl RpcClient {
             })
     }
 
-    pub fn set(self, key: String, values: Vec<String>) -> impl Future<Item = Self, Error = RpcError> {
+    pub fn set(
+        self,
+        values: Vec<String>,
+    ) -> impl Future<Item = Self, Error = RpcError> {
         self.send_request(Request::Set(values))
             .and_then(move |(resp, client)| match resp {
                 Some(Response::Set) => Ok(client),

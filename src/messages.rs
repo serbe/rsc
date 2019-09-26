@@ -10,6 +10,7 @@ pub enum Request {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Response {
+    Join,
     Set,
     Err(String),
     Urls(Vec<String>),

@@ -9,8 +9,8 @@ pub enum RpcError {
     Io(#[cause] io::Error),
     #[fail(display = "serde_json error: {}", _0)]
     Serde(#[cause] serde_json::Error),
-    #[fail(display = "Unexpected command type")]
-    UnexpectedCommandType,
+    // #[fail(display = "Unexpected command type")]
+    // UnexpectedCommandType,
     #[fail(display = "UTF-8 error: {}", _0)]
     Utf8(#[cause] FromUtf8Error),
     #[fail(display = "{}", _0)]
